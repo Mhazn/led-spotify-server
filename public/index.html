@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P6 Matrix / Now Playing</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --grid-line: #1d2128;
+    --text: #e7e9ec;
+    --dim: #6b7480;
+    --amber: #ffb020;
+    --violet: #8478f2;
+    --off: #2a2f37;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background:
+      radial-gradient(circle at 1px 1px, var(--grid-line) 1px, transparent 1px) 0 0 / 22px 22px,
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  .device {
+    width: 100%;
+    max-width: 420px;
+    background: var(--panel);
+    border: 1px solid #20242b;
+    border-radius: 4px;
+    padding: 20px;
+  }
+  .device-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .device-header h1 {
+    font-family: "Courier New", ui-monospace, monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin: 0;
+    color: var(--text);
+  }
+  .device-header .model {
+    display: block;
+    font-size: 11px;
+    color: var(--dim);
+    font-weight: 400;
+    margin-top: 2px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--off);
+    display: inline-block;
+    margin-right: 6px;
+  }
+  .status-dot.live { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .status-line {
+    font-size: 11px;
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+  }
+
+  .panel-frame {
+    aspect-ratio: 1 / 1;
+    background: #000;
+    border-radius: 2px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid #000;
+  }
+  .panel-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    filter: saturate(1.15);
+  }
+  .panel-frame .placeholder {
+    color: var(--dim);
+    font-family: "Courier New", ui-monospace, monospace;
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .readout {
+    margin-top: 16px;
+    border-top: 1px solid var(--grid-line);
+    padding-top: 14px;
+  }
+  .readout .track {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .readout .artist {
+    font-size: 13px;
+    color: var(--dim);
+    margin-top: 2px;
+  }
+
+  .actions {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+  }
+  button, a.button {
+    flex: 1;
+    text-align: center;
+    background: var(--violet);
+    color: #0b0d10;
+    border: none;
+    border-radius: 3px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  button:focus-visible, a.button:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+  .endpoint {
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--dim);
+    word-break: break-all;
+  }
+  .endpoint code {
+    color: var(--text);
+  }
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="device-header">
+      <div>
+        <h1>Now Playing Panel</h1>
+        <span class="model">P6-3535(27)-8S-HL &middot; 32&times;32 &middot; ESP32</span>
+      </div>
+      <div class="status-line"><span class="status-dot" id="statusDot"></span><span id="statusText">checking&hellip;</span></div>
+    </div>
+
+    <div class="panel-frame">
+      <img id="albumArt" alt="" hidden>
+      <div class="placeholder" id="placeholder">no signal</div>
+    </div>
+
+    <div class="readout">
+      <div class="track" id="trackName">&mdash;</div>
+      <div class="artist" id="artistName">Waiting for playback&hellip;</div>
+    </div>
+
+    <div class="endpoint">
+      Source: Last.fm scrobbles &middot; artwork via iTunes<br>
+      ESP32 frame endpoint: <code>/api/frame</code> (32&times;32 RGB565, big-endian)
+    </div>
+  </div>
+
+<script>
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const albumArt = document.getElementById('albumArt');
+  const placeholder = document.getElementById('placeholder');
+  const trackName = document.getElementById('trackName');
+  const artistName = document.getElementById('artistName');
+
+  async function refresh() {
+    try {
+      const res = await fetch('/api/nowplaying', { cache: 'no-store' });
+      const data = await res.json();
+
+      if (!data.configured) {
+        statusDot.classList.remove('live');
+        statusText.textContent = 'server not configured';
+        trackName.textContent = '—';
+        artistName.textContent = 'Set LASTFM_API_KEY / LASTFM_USERNAME in .env';
+        albumArt.hidden = true;
+        placeholder.hidden = false;
+        return;
+      }
+
+      if (data.isPlaying) {
+        statusDot.classList.add('live');
+        statusText.textContent = 'playing';
+      } else {
+        statusDot.classList.remove('live');
+        statusText.textContent = 'paused';
+      }
+
+      if (data.trackName) {
+        trackName.textContent = data.trackName;
+        artistName.textContent = data.artistName || '';
+      }
+
+      if (data.albumArtUrl) {
+        if (albumArt.src !== data.albumArtUrl) albumArt.src = data.albumArtUrl;
+        albumArt.hidden = false;
+        placeholder.hidden = true;
+      }
+    } catch (e) {
+      statusDot.classList.remove('live');
+      statusText.textContent = 'server unreachable';
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>
