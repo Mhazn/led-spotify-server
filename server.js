@@ -117,6 +117,11 @@ async function pollNowPlaying() {
   }
 }
 
+// Crops the album art into a circular "CD" shape: black outside the disc,
+// a small dim spindle hole in the middle. The ESP32 is the one that spins
+// this - a circle looks identical at every rotation angle around its own
+// center, so rotating this texture on the panel gives a real spinning-disc
+// look without the server needing to render every angle itself.
 async function renderFrame(imageUrl) {
   const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
   const { data } = await sharp(imgResp.data)
@@ -125,18 +130,38 @@ async function renderFrame(imageUrl) {
     .raw()
     .toBuffer({ resolveWithObject: true });
 
+  const cx = (PANEL_WIDTH - 1) / 2;
+  const cy = (PANEL_HEIGHT - 1) / 2;
+  const outerRadius = Math.min(PANEL_WIDTH, PANEL_HEIGHT) / 2 - 0.5;
+  const holeRadius = Math.max(1.5, outerRadius * 0.12);
+
   const frame = Buffer.alloc(PANEL_WIDTH * PANEL_HEIGHT * 2);
-  for (let i = 0, p = 0; i < data.length; i += 3, p += 2) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const rgb565 = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
-    frame.writeUInt16BE(rgb565, p);
+  for (let y = 0; y < PANEL_HEIGHT; y++) {
+    for (let x = 0; x < PANEL_WIDTH; x++) {
+      const i = (y * PANEL_WIDTH + x) * 3;
+      const p = (y * PANEL_WIDTH + x) * 2;
+      const dx = x - cx;
+      const dy = y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      let r, g, b;
+      if (dist > outerRadius) {
+        r = g = b = 0; // outside the disc
+      } else if (dist < holeRadius) {
+        r = g = b = 40; // spindle hole
+      } else {
+        r = data[i];
+        g = data[i + 1];
+        b = data[i + 2];
+      }
+      const rgb565 = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
+      frame.writeUInt16BE(rgb565, p);
+    }
   }
   currentFrame = frame;
 }
 
-setInterval(pollNowPlaying, 5000); // Last.fm scrobbling has its own lag, no need to hammer it faster
+setInterval(pollNowPlaying, 3000); // tightened from 5s - Last.fm's own scrobble lag is still the bigger delay
 
 // ---------------------------------------------------------------------------
 // API for the ESP32
