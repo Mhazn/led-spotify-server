@@ -2,231 +2,201 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>P6 Matrix / Now Playing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Now Playing Panel</title>
 <style>
   :root {
-    --bg: #0b0d10;
-    --panel: #14171c;
-    --grid-line: #1d2128;
-    --text: #e7e9ec;
-    --dim: #6b7480;
-    --amber: #ffb020;
-    --violet: #8478f2;
-    --off: #2a2f37;
+    --bg-top: #0b1220;
+    --bg-bottom: #1b2a4a;
+    --card-bg: rgba(255,255,255,0.06);
+    --text: #e8eefc;
+    --muted: #9fb0d0;
+    --accent: #5fd3c4;
   }
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    min-height: 100%;
-    background:
-      radial-gradient(circle at 1px 1px, var(--grid-line) 1px, transparent 1px) 0 0 / 22px 22px,
-      var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
   body {
+    margin: 0;
+    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 32px 16px;
+    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+    font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    color: var(--text);
+    padding: 24px;
   }
-  .device {
+  .card {
     width: 100%;
     max-width: 420px;
-    background: var(--panel);
-    border: 1px solid #20242b;
-    border-radius: 4px;
-    padding: 20px;
+    background: var(--card-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 20px 24px 24px;
+    backdrop-filter: blur(6px);
+    position: relative;
   }
-  .device-header {
+  .header {
     display: flex;
-    align-items: baseline;
     justify-content: space-between;
-    margin-bottom: 16px;
+    align-items: flex-start;
   }
-  .device-header h1 {
-    font-family: "Courier New", ui-monospace, monospace;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    margin: 0;
-    color: var(--text);
+  .title { font-size: 20px; font-weight: 700; margin: 0; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--muted);
   }
-  .device-header .model {
-    display: block;
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+  }
+  .dot.playing { background: #4ade80; box-shadow: 0 0 8px #4ade8099; }
+
+  /* Brightness control, top-right corner of the card */
+  .brightness-box {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    width: 110px;
+    text-align: right;
+  }
+  .brightness-label {
     font-size: 11px;
-    color: var(--dim);
-    font-weight: 400;
-    margin-top: 2px;
-  }
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--off);
-    display: inline-block;
-    margin-right: 6px;
-  }
-  .status-dot.live { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
-  .status-line {
-    font-size: 11px;
-    color: var(--dim);
+    color: var(--muted);
     display: flex;
-    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .brightness-label span.level { color: var(--accent); font-weight: 700; }
+  .brightness-box input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
   }
 
-  .panel-frame {
+  .art-box {
+    margin-top: 18px;
+    width: 100%;
     aspect-ratio: 1 / 1;
-    background: #000;
-    border-radius: 2px;
-    padding: 10px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #060a14;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-    border: 1px solid #000;
+    border: 1px solid rgba(255,255,255,0.08);
   }
-  .panel-frame img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    image-rendering: pixelated;
-    image-rendering: -moz-crisp-edges;
-    filter: saturate(1.15);
-  }
-  .panel-frame .placeholder {
-    color: var(--dim);
-    font-family: "Courier New", ui-monospace, monospace;
-    font-size: 12px;
-    text-align: center;
-  }
+  .art-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .no-signal { color: var(--muted); font-size: 14px; }
 
-  .readout {
+  .track-info { margin-top: 18px; }
+  .track-name { font-size: 18px; font-weight: 700; }
+  .artist-name { color: var(--muted); font-size: 14px; margin-top: 2px; }
+
+  .footer {
     margin-top: 16px;
-    border-top: 1px solid var(--grid-line);
-    padding-top: 14px;
-  }
-  .readout .track {
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.3;
-  }
-  .readout .artist {
-    font-size: 13px;
-    color: var(--dim);
-    margin-top: 2px;
-  }
-
-  .actions {
-    margin-top: 18px;
-    display: flex;
-    gap: 10px;
-  }
-  button, a.button {
-    flex: 1;
-    text-align: center;
-    background: var(--violet);
-    color: #0b0d10;
-    border: none;
-    border-radius: 3px;
-    padding: 10px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-block;
-  }
-  button:focus-visible, a.button:focus-visible {
-    outline: 2px solid var(--amber);
-    outline-offset: 2px;
-  }
-  .endpoint {
-    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.08);
     font-size: 11px;
-    color: var(--dim);
-    word-break: break-all;
+    color: var(--muted);
+    line-height: 1.6;
   }
-  .endpoint code {
-    color: var(--text);
-  }
+  .footer code { color: #cfe6ff; }
 </style>
 </head>
 <body>
-  <div class="device">
-    <div class="device-header">
-      <div>
-        <h1>Now Playing Panel</h1>
-        <span class="model">P6-3535(27)-8S-HL &middot; 32&times;32 &middot; ESP32</span>
-      </div>
-      <div class="status-line"><span class="status-dot" id="statusDot"></span><span id="statusText">checking&hellip;</span></div>
-    </div>
 
-    <div class="panel-frame">
-      <img id="albumArt" alt="" hidden>
-      <div class="placeholder" id="placeholder">no signal</div>
+<div class="card">
+  <div class="brightness-box">
+    <div class="brightness-label">
+      <span>Brightness</span>
+      <span class="level" id="brightnessValue">--</span>
     </div>
-
-    <div class="readout">
-      <div class="track" id="trackName">&mdash;</div>
-      <div class="artist" id="artistName">Waiting for playback&hellip;</div>
-    </div>
-
-    <div class="endpoint">
-      Source: Last.fm scrobbles &middot; artwork via iTunes<br>
-      ESP32 frame endpoint: <code>/api/frame</code> (32&times;32 RGB565, big-endian)
-    </div>
+    <input type="range" id="brightnessSlider" min="0" max="255" value="180">
   </div>
 
+  <div class="header">
+    <div>
+      <p class="title">Now Playing Panel</p>
+      <p class="subtitle">P6-3535(27)-8S-HL &middot; 32&times;32 &middot; ESP32</p>
+    </div>
+  </div>
+  <div class="status" style="margin-top:6px;">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">paused</span>
+  </div>
+
+  <div class="art-box" id="artBox">
+    <span class="no-signal">no signal</span>
+  </div>
+
+  <div class="track-info">
+    <div class="track-name" id="trackName">&mdash;</div>
+    <div class="artist-name" id="artistName">&nbsp;</div>
+  </div>
+
+  <div class="footer">
+    <div>Source: Last.fm scrobbles &middot; artwork via iTunes</div>
+    <div>ESP32 frame endpoint: <code>/api/frame</code> (32&times;32 RGB565, big-endian)</div>
+  </div>
+</div>
+
 <script>
-  const statusDot = document.getElementById('statusDot');
-  const statusText = document.getElementById('statusText');
-  const albumArt = document.getElementById('albumArt');
-  const placeholder = document.getElementById('placeholder');
-  const trackName = document.getElementById('trackName');
-  const artistName = document.getElementById('artistName');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const artBox = document.getElementById('artBox');
+const trackNameEl = document.getElementById('trackName');
+const artistNameEl = document.getElementById('artistName');
+const brightnessSlider = document.getElementById('brightnessSlider');
+const brightnessValue = document.getElementById('brightnessValue');
 
-  async function refresh() {
-    try {
-      const res = await fetch('/api/nowplaying', { cache: 'no-store' });
-      const data = await res.json();
+let lastArtUrl = null;
+let draggingBrightness = false;
 
-      if (!data.configured) {
-        statusDot.classList.remove('live');
-        statusText.textContent = 'server not configured';
-        trackName.textContent = '—';
-        artistName.textContent = 'Set LASTFM_API_KEY / LASTFM_USERNAME in .env';
-        albumArt.hidden = true;
-        placeholder.hidden = false;
-        return;
-      }
+async function refreshNowPlaying() {
+  const res = await fetch('/api/nowplaying');
+  const data = await res.json();
 
-      if (data.isPlaying) {
-        statusDot.classList.add('live');
-        statusText.textContent = 'playing';
-      } else {
-        statusDot.classList.remove('live');
-        statusText.textContent = 'paused';
-      }
+  const playing = !!data.isPlaying;
+  statusDot.classList.toggle('playing', playing);
+  statusText.textContent = playing ? 'playing' : 'paused';
 
-      if (data.trackName) {
-        trackName.textContent = data.trackName;
-        artistName.textContent = data.artistName || '';
-      }
+  trackNameEl.textContent = data.trackName || '\u2014';
+  artistNameEl.textContent = data.artistName || '\u00a0';
 
-      if (data.albumArtUrl) {
-        if (albumArt.src !== data.albumArtUrl) albumArt.src = data.albumArtUrl;
-        albumArt.hidden = false;
-        placeholder.hidden = true;
-      }
-    } catch (e) {
-      statusDot.classList.remove('live');
-      statusText.textContent = 'server unreachable';
-    }
+  if (data.albumArtUrl && data.albumArtUrl !== lastArtUrl) {
+    artBox.innerHTML = `<img src="${data.albumArtUrl}" alt="album art">`;
+    lastArtUrl = data.albumArtUrl;
+  } else if (!data.albumArtUrl) {
+    artBox.innerHTML = '<span class="no-signal">no signal</span>';
+    lastArtUrl = null;
   }
+}
 
-  refresh();
-  setInterval(refresh, 3000);
+async function refreshBrightness() {
+  if (draggingBrightness) return;
+  const res = await fetch('/api/brightness');
+  const data = await res.json();
+  brightnessSlider.value = data.brightness;
+  brightnessValue.textContent = data.brightness;
+}
+
+brightnessSlider.addEventListener('pointerdown', () => { draggingBrightness = true; });
+brightnessSlider.addEventListener('input', () => {
+  brightnessValue.textContent = brightnessSlider.value;
+});
+brightnessSlider.addEventListener('change', async () => {
+  await fetch('/api/brightness', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ brightness: parseInt(brightnessSlider.value, 10) }),
+  });
+  draggingBrightness = false;
+});
+
+refreshNowPlaying();
+refreshBrightness();
+setInterval(refreshNowPlaying, 3000);
+setInterval(refreshBrightness, 5000);
 </script>
 </body>
 </html>
